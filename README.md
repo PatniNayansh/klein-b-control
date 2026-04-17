@@ -1,8 +1,8 @@
 # KLEIN-B — control system
 
-KLEIN-B is a solar-powered autonomous boat for cleaning lakes that have gone eutrophic — too much nitrogen runoff, algal blooms, fish kills, the whole deal. The full project combines mechanical surface skimming with biological remediation: Azolla planting to lock up nutrients, Daphnia release to eat the algae.
+KLEIN-B is a solar-powered autonomous boat for cleaning lakes that have gone eutrophic — too much nitrogen runoff, algal blooms, fish kills, the whole deal. The full project combines mechanical surface skimming with biological remediation: planting Azolla to lock up nutrients, releasing Daphnia to eat the algae.
 
-This repo is the brain. It's the Python package that turns sensor data into thruster commands. No GUI, no simulator, no mock sensor data — hardware drivers plug into the sensor ABCs.
+This repo is the brain. It's the Python code that turns sensor data into thruster commands. No GUI, no simulator, no fake sensor data — real hardware drivers plug into the sensor classes.
 
 ## How it fits together
 
@@ -10,33 +10,33 @@ This repo is the brain. It's the Python package that turns sensor data into thru
   Brain.tick()
       |
       v
-  sense → fuse → localize → map → safety → schedule → plan → control
+  sense → locate → map → safety check → pick task → plan → drive
 ```
 
-Each stage is its own module. `Brain` wires them together and runs the loop.
+Each stage is its own module. `Brain` just ties them together and runs the loop.
 
 ```
 klein_b/
-  core/         types, world/boat state, safety monitor + rules
-  sensors/      abstract sensor interfaces, fusion
-  navigation/   localization (EKF), occupancy grid, A*, boustrophedon, controller
-  scheduler/    task ABC, priority scheduler
-  brain.py      composes everything
+  core/         types, world state, safety rules
+  sensors/      sensor interfaces, fusion
+  navigation/   localization, mapping, pathfinding, motor control
+  scheduler/    task queue with priorities
+  brain.py      ties everything together
 ```
 
 ## Implemented
 
-- **A\* path planner** — 8-connected, octile heuristic
-- **Log-odds occupancy grid** with Bresenham raycasting for lidar integration
-- **Boustrophedon coverage** for full-surface sweeps (skimmer passes, Azolla broadcast)
-- **Pure-pursuit controller** with differential-thrust mixing
-- **Priority scheduler** with preemption and safety-interrupt handling
-- **Safety monitor** — low battery, obstacle proximity, capsize (IMU tilt), geofence
+- **A\* pathfinding** for getting from A to B around obstacles
+- **Occupancy grid** that tracks where obstacles are, based on lidar returns
+- **Zigzag (lawnmower) coverage** for cleaning the whole lake surface
+- **Waypoint follower** that turns a target point into left/right motor thrust
+- **Task scheduler** with priorities and preemption
+- **Safety checks** — low battery, obstacle too close, boat tilting too much, staying inside the lake bounds
 
 ## Stubbed
 
-- **Sensor drivers.** Each sensor (lidar, GPS, IMU, battery, water probe) is an ABC. Real drivers subclass these. Mock implementations would hide unit and frame-of-reference bugs, which is what the ABCs exist to catch.
-- **GPS update step in the EKF.** State vector, covariance, predict step, and IMU update are done. The Kalman gain for GPS is a single TODO — picking `R_gps` needs real receiver noise data, not a guess.
+- **Sensor drivers.** Each sensor (lidar, GPS, IMU, battery, water probe) is an abstract class. Real drivers will fill these in. I didn't write fake versions because fake data would hide bugs in units or coordinate systems, which is exactly what the abstract classes are there to catch.
+- **GPS position correction.** The position estimator already works from the IMU, but the GPS side isn't finished — I need to test against a real receiver before I can tune it. Making up those numbers now would be pointless.
 
 ## Running it
 
@@ -47,16 +47,16 @@ ruff check klein_b tests
 mypy --strict klein_b
 pytest -v
 
-python examples/brain_wiring.py   # instantiates the Brain, doesn't tick
+python examples/brain_wiring.py   # instantiates the Brain, doesn't actually run it
 ```
 
 CI runs all four on every push.
 
-`examples/brain_wiring.py` shows how everything gets wired. Swap the `Unconnected*` sensor classes for real drivers and `brain.tick(dt, now)` will produce thrust commands.
+`examples/brain_wiring.py` shows how everything gets wired up. Swap the `Unconnected*` sensor classes for real drivers and `brain.tick(dt, now)` will actually produce thrust commands.
 
 ## Next
 
-- Hardware drivers once the parts arrive (Velodyne, uBlox ZED-F9P, BNO085, BMS, Atlas Scientific EZO)
-- Characterize GPS covariance, finish the EKF update
+- Hardware drivers when the parts arrive (Velodyne lidar, uBlox GPS, BNO085 IMU, the battery board, Atlas Scientific water probe)
+- Finish the GPS side of the position estimator once I can test against the real receiver
 - Phase-specific tasks (`DockAndCharge`, `AzollaBroadcast`, `DaphniaRelease`, etc.) in a separate mission-runner repo so this one stays generic
-- MQTT or LoRa bridge for shore telemetry and remote abort
+- Radio bridge (MQTT or LoRa) for shore telemetry and a remote abort button
