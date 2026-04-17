@@ -1,13 +1,8 @@
 # KLEIN-B — control system
 
-KLEIN-B is a solar-powered autonomous boat for cleaning lakes that have gone
-eutrophic (too much nitrogen runoff, algal blooms, fish kills, the whole deal).
-The full project combines mechanical surface skimming with biological remediation
-— Azolla planting to lock up nutrients, Daphnia release to eat the algae.
+KLEIN-B is a solar-powered autonomous boat for cleaning lakes that have gone eutrophic — too much nitrogen runoff, algal blooms, fish kills, the whole deal. The full project combines mechanical surface skimming with biological remediation: Azolla planting to lock up nutrients, Daphnia release to eat the algae.
 
-This repo is the **brain** — the Python package that turns sensor data into
-thruster commands. No GUI, no simulator, no fake sensor data. The hardware
-drivers plug in where the sensor ABCs are.
+This repo is the brain. It's the Python package that turns sensor data into thruster commands. No GUI, no simulator, no mock sensor data — hardware drivers plug into the sensor ABCs.
 
 ## How it fits together
 
@@ -15,11 +10,10 @@ drivers plug in where the sensor ABCs are.
   Brain.tick()
       |
       v
-  sense -> fuse -> localize -> map -> safety -> schedule -> plan -> control
+  sense → fuse → localize → map → safety → schedule → plan → control
 ```
 
-Each stage is its own module under `klein_b/`. `Brain` just wires them
-together and runs the loop.
+Each stage is its own module. `Brain` wires them together and runs the loop.
 
 ```
 klein_b/
@@ -30,29 +24,19 @@ klein_b/
   brain.py      composes everything
 ```
 
-## What's actually implemented
+## Implemented
 
-The algorithms are real code, not stubs:
-
-- **A\* path planner** (8-connected, octile heuristic) in `navigation/path_planner.py`
+- **A\* path planner** — 8-connected, octile heuristic
 - **Log-odds occupancy grid** with Bresenham raycasting for lidar integration
 - **Boustrophedon coverage** for full-surface sweeps (skimmer passes, Azolla broadcast)
-- **Pure-pursuit waypoint controller** with differential-thrust mixing
-- **Priority task scheduler** with preemption and safety-interrupt handling
-- **Safety monitor** with four rules: low battery, obstacle proximity, capsize (from IMU tilt), geofence
+- **Pure-pursuit controller** with differential-thrust mixing
+- **Priority scheduler** with preemption and safety-interrupt handling
+- **Safety monitor** — low battery, obstacle proximity, capsize (IMU tilt), geofence
 
-## What's stubbed (on purpose)
+## Stubbed
 
-- **Sensor drivers.** Each sensor (lidar, GPS, IMU, battery, water probe) is an
-  ABC with `NotImplementedError` on `read()`. Real drivers subclass these.
-  I didn't fake them because the whole point of having the ABCs is that a
-  fake version would paper over the units/frame mistakes you actually care about.
-
-- **GPS measurement update in the EKF.** The state vector, covariance, predict
-  step, and IMU-based update are all implemented. The Kalman gain block for
-  GPS is a single TODO in `localization.py`. I need real receiver data to
-  pick R_gps before that's worth writing — hardcoding made-up numbers isn't
-  actually an EKF, it's just a fancier way of lying.
+- **Sensor drivers.** Each sensor (lidar, GPS, IMU, battery, water probe) is an ABC. Real drivers subclass these. Mock implementations would hide unit and frame-of-reference bugs, which is what the ABCs exist to catch.
+- **GPS update step in the EKF.** State vector, covariance, predict step, and IMU update are done. The Kalman gain for GPS is a single TODO — picking `R_gps` needs real receiver noise data, not a guess.
 
 ## Running it
 
@@ -68,20 +52,11 @@ python examples/brain_wiring.py   # instantiates the Brain, doesn't tick
 
 CI runs all four on every push.
 
-`examples/brain_wiring.py` is the quickest way to see how everything gets
-wired up. Replace the `Unconnected*` sensor classes with real drivers and
-`brain.tick(dt, now)` will produce actual thrust commands.
+`examples/brain_wiring.py` shows how everything gets wired. Swap the `Unconnected*` sensor classes for real drivers and `brain.tick(dt, now)` will produce thrust commands.
 
-## Next steps
+## Next
 
-- Write the hardware drivers once I have the parts in hand (Velodyne, uBlox
-  ZED-F9P, BNO085, the BMS, Atlas Scientific EZO)
-- Characterize GPS covariance and finish the EKF measurement update
-- Build the phase-specific tasks (`DockAndCharge`, `AzollaBroadcast`,
-  `DaphniaRelease`, etc.) in a separate mission-runner repo so this one
-  stays generic
-- MQTT or LoRa bridge so shore can watch telemetry and hit an abort button
-
-## License
-
-MIT — see [LICENSE](./LICENSE).
+- Hardware drivers once the parts arrive (Velodyne, uBlox ZED-F9P, BNO085, BMS, Atlas Scientific EZO)
+- Characterize GPS covariance, finish the EKF update
+- Phase-specific tasks (`DockAndCharge`, `AzollaBroadcast`, `DaphniaRelease`, etc.) in a separate mission-runner repo so this one stays generic
+- MQTT or LoRa bridge for shore telemetry and remote abort
