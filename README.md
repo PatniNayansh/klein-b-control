@@ -33,10 +33,6 @@ klein_b/
 - **Task scheduler** with priorities and preemption
 - **Safety checks** — low battery, obstacle too close, boat tilting too much, staying inside the lake bounds
 
-## Stubbed
-
-- **Sensor drivers.** Each sensor (lidar, GPS, IMU, battery, water probe) is an abstract class. Real drivers will fill these in. I didn't write fake versions because fake data would hide bugs in units or coordinate systems, which is exactly what the abstract classes are there to catch.
-- **GPS position correction.** The position estimator already works from the IMU, but the GPS side isn't finished — I need to test against a real receiver before I can tune it. Making up those numbers now would be pointless.
 
 ## Running it
 
